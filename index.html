@@ -1,47 +1,97 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StruXtor</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+    <div class="bg-glow-container">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
     <div class="app-layout">
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h3>Historique</h3>
-                <button id="clear-history" title="Tout effacer"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                <button id="clear-history" title="Tout effacer">
+                    <i data-lucide="trash-2"></i>
+                </button>
             </div>
             <div id="history-list">
-                <!-- Les éléments d'historique s'afficheront ici -->
-                <div class="empty-history">Aucun historique</div>
+                <div class="empty-history">
+                    <i data-lucide="compass" class="empty-icon"></i>
+                    <p>Aucun historique</p>
+                </div>
             </div>
         </aside>
+        
         <main class="main-content">
             <div id="header">
-                <button id="sidebar-toggle" title="Basculer l'historique"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
-                <img src="Assets/logo.png" id="logo" alt="logo">
-                <h1 id="title">StruXtor</h1>
-            </div>
-            <div id="middler">
-                <p id="app-desc">Transformez vos dossiers en arborescence textuelle prête à être partagée.</p>
-                <h2 id="import-txt">Glissez un dossier ou cliquez pour importer</h2>
-                <button id="import-btn"><img src="Assets/import.png" id="import-img" alt="img-import"></button>
-                <input type="file" id="folderInput" webkitdirectory multiple style="display:none">
-            </div>
-            <div id="loading-container" style="display: none;">
-                <div class="loader-spinner"></div>
-                <div id="loading-text">Analyse en cours...</div>
-                <div id="progress-bar-container">
-                    <div id="progress-bar"></div>
+                <button id="sidebar-toggle" title="Basculer l'historique">
+                    <i data-lucide="menu"></i>
+                </button>
+                <div class="brand-container">
+                    <img src="Assets/logo.png" id="logo" alt="logo" onerror="this.style.display='none'">
+                    <h1 id="title">StruXtor</h1>
                 </div>
-                <div id="file-count">Initialisation...</div>
             </div>
-            <div id="structure-output"></div>
+            
+            <div class="content-body">
+                <div class="filter-panel">
+                    <div class="filter-header">
+                        <i data-lucide="sliders-horizontal" class="filter-icon"></i>
+                        <span>Filtres d'exclusion</span>
+                    </div>
+                    <div class="filter-options">
+                        <label class="switch-container">
+                            <input type="checkbox" id="filter-dev" checked>
+                            <span class="slider"></span>
+                            <span class="label-text">Ignorer les dossiers de dev <small>(node_modules, .git, dist...)</small></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="middler">
+                    <div class="interactive-border"></div>
+                    <div class="drop-zone-content">
+                        <div id="import-btn">
+                            <div class="icon-wrapper">
+                                <i data-lucide="plus" class="upload-icon"></i>
+                            </div>
+                        </div>
+                        <h2 id="import-txt">Déposer un dossier</h2>
+                        <p id="app-desc">Générez instantanément une arborescence textuelle épurée.</p>
+                    </div>
+                    <input type="file" id="folderInput" webkitdirectory multiple style="display:none">
+                </div>
+                
+                <div id="loading-container" style="display: none;">
+                    <div class="loader-wave">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <div id="loading-text">Analyse des fichiers...</div>
+                    <div id="progress-bar-container">
+                        <div id="progress-bar"></div>
+                    </div>
+                    <div id="file-count">0 fichier détecté</div>
+                </div>
+                
+                <div id="structure-output"></div>
+            </div>
         </main>
     </div>
 
+    <script>
+        // Initialisation initiale des icônes Lucide
+        lucide.createIcons();
+    </script>
     <script src="script.js"></script>
 </body>
 </html>

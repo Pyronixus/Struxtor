@@ -9,14 +9,18 @@ const clearHistoryBtn = document.getElementById('clear-history');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const progressBar = document.getElementById('progress-bar');
 const progressBarContainer = document.getElementById('progress-bar-container');
+const filterDevCheckbox = document.getElementById('filter-dev');
 
 const ICONS = {
     clipboard: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>`,
     check: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`
 };
 
+// Liste des dossiers de dev à exclure si le filtre est actif
+const EXCLUDED_FOLDERS = ['node_modules', '.git', 'dist', 'build', '.next', '.nuxt', 'vendor', '.cache', 'out'];
+
 importBtn.addEventListener('click', (e) => {
-    e.stopPropagation(); // Empêche le clic de remonter au middler (éviter double ouverture)
+    e.stopPropagation(); 
     folderInput.click();
 });
 
@@ -24,11 +28,9 @@ folderInput.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     
-    showLoading(true, true); // Show loading with progress bar
+    showLoading(true, true);
     
-    // Use a timeout to ensure the loading UI renders before the heavy work starts
     setTimeout(async () => {
-        // Define the progress callback to update the UI
         const progressCallback = (current, total) => {
             const percentage = Math.round((current / total) * 100);
             progressBar.style.width = `${percentage}%`;
@@ -38,20 +40,21 @@ folderInput.addEventListener('change', async (e) => {
         const root = await buildTree(files, progressCallback);
         generateAndDisplayTree(root, true);
         showLoading(false);
+        folderInput.value = ''; 
     }, 50);
 });
 
-// Basculer la barre latérale (Historique)
-sidebarToggle.addEventListener('click', () => {
+// Fix du repliement de la barre latérale historique
+sidebarToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
     document.querySelector('.sidebar').classList.toggle('collapsed');
 });
 
-// Clic sur toute la zone d'import
 middler.addEventListener('click', () => {
     folderInput.click();
 });
 
-// Drag and Drop Logic
+// Drag and Drop
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
     middler.addEventListener(eventName, (e) => {
         e.preventDefault();
@@ -67,7 +70,7 @@ middler.addEventListener('drop', async (e) => {
     const items = e.dataTransfer.items;
     if (!items) return;
 
-    showLoading(true, false); // Show loading, no progress bar
+    showLoading(true, false);
     fileCountLabel.textContent = "Analyse des répertoires...";
 
     const fileList = [];
@@ -76,7 +79,7 @@ middler.addEventListener('drop', async (e) => {
     for (let i = 0; i < items.length; i++) {
         const entry = items[i].webkitGetAsEntry();
         if (entry) {
-            promises.push(traverseFileTree(entry));
+            promises.push(traverseFileTree(entry, ''));
         }
     }
 
@@ -84,10 +87,9 @@ middler.addEventListener('drop', async (e) => {
     results.flat().forEach(file => fileList.push(file));
     
     if (fileList.length) {
-        fileCountLabel.textContent = `Construction de l'arbre pour ${fileList.length} fichiers...`;
-        // Yield to UI thread to show the message before potentially heavy processing
+        fileCountLabel.textContent = `Construction de l'arbre...`;
         await new Promise(resolve => setTimeout(resolve, 0));
-        const root = await buildTree(fileList); // Use unified function without progress
+        const root = await buildTree(fileList);
         generateAndDisplayTree(root, true);
     }
     showLoading(false);
@@ -107,10 +109,21 @@ function showLoading(show, isProgressive = false) {
 
 function traverseFileTree(item, path = '') {
     return new Promise((resolve) => {
+        const currentPath = path === '' ? item.name : `${path}/${item.name}`;
+
+        // Vérification de filtre immédiat pendant le drag & drop pour optimiser les performances
+        if (filterDevCheckbox.checked) {
+            const pathParts = currentPath.split('/');
+            if (pathParts.some(part => EXCLUDED_FOLDERS.includes(part))) {
+                resolve([]);
+                return;
+            }
+        }
+
         if (item.isFile) {
             scannedCount++;
-            if (scannedCount % 20 === 0) fileCountLabel.textContent = `${scannedCount} fichiers trouvés...`;
-            resolve([{ webkitRelativePath: path + item.name }]);
+            if (scannedCount % 50 === 0) fileCountLabel.textContent = `${scannedCount} fichiers trouvés...`;
+            resolve([{ webkitRelativePath: currentPath }]);
         } else if (item.isDirectory) {
             const dirReader = item.createReader();
             const entries = [];
@@ -118,14 +131,12 @@ function traverseFileTree(item, path = '') {
             const readEntries = () => {
                 dirReader.readEntries(async (result) => {
                     if (!result.length) {
-                        // Done reading directory
-                        fileCountLabel.textContent = `${scannedCount} fichiers trouvés, construction de l'arbre...`;
-                        const subPromises = entries.map(entry => traverseFileTree(entry, path + item.name + '/'));
+                        const subPromises = entries.map(entry => traverseFileTree(entry, currentPath));
                         const subFiles = await Promise.all(subPromises);
                         resolve(subFiles.flat());
                     } else {
                         entries.push(...result);
-                        readEntries(); // Keep reading (chunks)
+                        readEntries();
                     }
                 });
             };
@@ -134,7 +145,62 @@ function traverseFileTree(item, path = '') {
     });
 }
 
+async function buildTree(files, progressCallback = null) {
+    const root = [];
+    const totalFiles = files.length;
+    const shouldFilter = filterDevCheckbox.checked;
+
+    const addPathToTree = (filePath) => {
+        const parts = filePath.replace(/^\/+|\/+$/g, '').split('/');
+        
+        // Filtrage des fichiers issus de l'input classique
+        if (shouldFilter && parts.some(part => EXCLUDED_FOLDERS.includes(part))) {
+            return; 
+        }
+
+        let currentLevel = root;
+        parts.forEach((part, index) => {
+            if (!part) return;
+            let existingPath = currentLevel.find(item => item.name === part);
+            const isFile = index === parts.length - 1;
+            if (!existingPath) {
+                existingPath = { name: part, type: isFile ? 'file' : 'folder', children: [] };
+                currentLevel.push(existingPath);
+            }
+            if (!isFile) {
+                currentLevel = existingPath.children;
+            }
+        });
+    };
+
+    for (let i = 0; i < totalFiles; i++) {
+        addPathToTree(files[i].webkitRelativePath);
+        if (progressCallback && (i % 200 === 0 || i === totalFiles - 1)) {
+            progressCallback(i + 1, totalFiles);
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+
+    sortTree(root);
+    return root;
+}
+
+function sortTree(nodes) {
+    nodes.sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+        return a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' });
+    });
+    nodes.forEach(node => {
+        if (node.children && node.children.length > 0) sortTree(node.children);
+    });
+}
+
 function generateAndDisplayTree(root, saveToHistory = true) {
+    if (root.length === 0) {
+        outputDiv.innerHTML = '<div style="text-align:center; color: var(--text-muted); margin-top:20px;">Aucun fichier à afficher (Arbre vide ou totalement filtré).</div>';
+        return;
+    }
+
     if (saveToHistory) {
         addToHistory(root);
     }
@@ -144,7 +210,6 @@ function generateAndDisplayTree(root, saveToHistory = true) {
     const wrapper = document.createElement('div');
     wrapper.className = 'output-wrapper';
 
-    // Create Window Header
     const header = document.createElement('div');
     header.className = 'window-header';
 
@@ -154,7 +219,6 @@ function generateAndDisplayTree(root, saveToHistory = true) {
         const dot = document.createElement('span');
         dot.className = `dot ${color}`;
 
-        // Logique de fermeture (Point rouge)
         if (color === 'red') {
             dot.style.cursor = 'pointer';
             dot.title = "Fermer l'architecture";
@@ -169,82 +233,44 @@ function generateAndDisplayTree(root, saveToHistory = true) {
     copyBtn.innerHTML = `${ICONS.clipboard} Copier`;
     copyBtn.onclick = () => performCopy(pre.innerText, copyBtn);
 
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'export-btn';
+    exportBtn.innerHTML = 'Exporter';
+    exportBtn.onclick = () => performExport(pre.innerText);
+
     header.appendChild(controls);
     header.appendChild(copyBtn);
+    header.appendChild(exportBtn);
 
     const pre = document.createElement('pre');
     pre.className = 'tree-container';
-    pre.innerHTML = renderTreeHTML(root); // Use HTML renderer
+    pre.innerHTML = renderTreeHTML(root);
     
     wrapper.appendChild(header);
     wrapper.appendChild(pre);
     outputDiv.appendChild(wrapper);
 
-    // Auto Copy feature
     performCopy(pre.innerText, copyBtn, true);
+    wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function performCopy(text, btnElement, isAuto = false) {
     navigator.clipboard.writeText(text).then(() => {
         btnElement.innerHTML = isAuto ? `${ICONS.check} Copié Auto !` : `${ICONS.check} Copié !`;
         setTimeout(() => btnElement.innerHTML = `${ICONS.clipboard} Copier`, 2000);
-    }).catch(err => console.error('Copy failed:', err));
+    }).catch(err => console.error('Erreur de copie:', err));
 }
 
-/**
- * Builds a tree structure from a flat list of files.
- * Can optionally report progress via a callback.
- * @param {File[]} files - The array of file objects from the input.
- * @param {Function|null} progressCallback - A function to call with progress updates.
- * @returns {Promise<Array>} The generated tree structure.
- */
-async function buildTree(files, progressCallback = null) {
-    const root = [];
-    const totalFiles = files.length;
-
-    // Core logic to add a single file path to the tree structure
-    const addPathToTree = (filePath) => {
-        const parts = filePath.split('/');
-        let currentLevel = root;
-
-        parts.forEach((part, index) => {
-            if (!part) return; // Ignore empty parts from paths like /folder/file
-            let existingPath = currentLevel.find(item => item.name === part);
-            const isFile = index === parts.length - 1;
-            if (!existingPath) {
-                existingPath = { name: part, type: isFile ? 'file' : 'folder', children: [] };
-                currentLevel.push(existingPath);
-            }
-            if (!isFile) {
-                currentLevel = existingPath.children;
-            }
-        });
-    };
-
-    // Process files in chunks to keep the UI responsive
-    for (let i = 0; i < totalFiles; i++) {
-        addPathToTree(files[i].webkitRelativePath);
-        // If a progress callback is provided, update UI periodically
-        if (progressCallback && (i % 100 === 0 || i === totalFiles - 1)) {
-            progressCallback(i + 1, totalFiles);
-            await new Promise(resolve => setTimeout(resolve, 0)); // Yield to main thread
-        }
-    }
-
-    sortTree(root);
-    return root;
-}
-
-function sortTree(nodes) {
-    // Sorts nodes: folders first, then files, both alphabetically.
-    nodes.sort((a, b) => {
-        if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
-        return a.name.localeCompare(b.name);
-    });
-    // Recurse for children
-    nodes.forEach(node => {
-        if (node.children.length > 0) sortTree(node.children);
-    });
+function performExport(text) {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'structure.txt';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }
 
 function renderTreeHTML(nodes, prefix = '') {
@@ -258,7 +284,7 @@ function renderTreeHTML(nodes, prefix = '') {
         
         if (node.type === 'folder') {
             output += `<span class="t-folder">${node.name}/</span>\n`;
-            if (node.children.length > 0) {
+            if (node.children && node.children.length > 0) {
                 output += renderTreeHTML(node.children, prefix + (isLast ? '    ' : '│   '));
             }
         } else {
@@ -272,7 +298,6 @@ function renderTreeHTML(nodes, prefix = '') {
 
 function getFileExtensionClass(filename) {
     const ext = filename.split('.').pop().toLowerCase();
-    // If filename has no extension or starts with dot (like .gitignore)
     if (filename.indexOf('.') === -1 || filename.startsWith('.')) {
         if (filename === '.gitignore' || filename === '.env') return 'ext-git';
         return ''; 
@@ -294,22 +319,17 @@ function getFileExtensionClass(filename) {
     }
 }
 
-// --- History Management ---
-
 function addToHistory(root) {
     let history = JSON.parse(localStorage.getItem('struxtor_history') || '[]');
-    
-    // Assume root folder name is the first folder's name if exists, or "Projet"
-    const rootName = root.find(n => n.type === 'folder')?.name || "Projet Sans Titre";
+    const rootName = root.find(n => n.type === 'folder')?.name || "Projet Analysé";
     
     const newItem = {
         id: Date.now(),
         name: rootName,
-        timestamp: new Date().toLocaleString(),
+        timestamp: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}),
         data: root
     };
 
-    // Keep last 10 items
     history.unshift(newItem);
     if (history.length > 10) history.pop();
 
@@ -322,7 +342,8 @@ function renderHistory() {
     historyList.innerHTML = '';
 
     if (history.length === 0) {
-        historyList.innerHTML = '<div class="empty-history">Aucun historique</div>';
+        historyList.innerHTML = '<div class="empty-history"><i data-lucide="compass" class="empty-icon"></i><p>Aucun historique</p></div>';
+        if(window.lucide) lucide.createIcons();
         return;
     }
 
@@ -343,5 +364,4 @@ clearHistoryBtn.addEventListener('click', () => {
     renderHistory();
 });
 
-// Init
 renderHistory();
