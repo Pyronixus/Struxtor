@@ -14,6 +14,7 @@ const exportModal = document.getElementById("export-modal");
 const exportCancel = document.getElementById("export-cancel");
 
 let currentExportText = "";
+let currentExportRoot = null;
 let historyRecords = [];
 
 const ICONS = {
@@ -275,7 +276,7 @@ function generateAndDisplayTree(root, saveToHistory = true) {
   const exportBtn = document.createElement("button");
   exportBtn.className = "export-btn";
   exportBtn.innerHTML = "Exporter";
-  exportBtn.onclick = () => performExport(pre.innerText);
+  exportBtn.onclick = () => performExport(pre.innerText, root);
 
   header.appendChild(controls);
   header.appendChild(copyBtn);
@@ -308,8 +309,9 @@ function performCopy(text, btnElement, isAuto = false) {
     .catch((err) => console.error("Erreur de copie:", err));
 }
 
-function performExport(text) {
+function performExport(text, root) {
   currentExportText = text;
+  currentExportRoot = root;
   exportModal.classList.add("visible");
   exportModal.setAttribute("aria-hidden", "false");
 }
@@ -328,13 +330,16 @@ function chooseExportFormat(format) {
     finalText = JSON.stringify({ structure: currentExportText }, null, 2);
     filename += ".json";
     mimeType = "application/json;charset=utf-8";
-  } else if (format === "md") {
-    filename += ".md";
+  } else if (format === "csv") {
+    finalText = buildCsvFromTree(currentExportRoot || []);
+    filename += ".csv";
+    mimeType = "text/csv;charset=utf-8";
   } else {
     filename += ".txt";
   }
 
-  const blob = new Blob([finalText], { type: mimeType });
+  const blobPayload = format === "csv" ? ["\uFEFF", finalText] : [finalText];
+  const blob = new Blob(blobPayload, { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -344,6 +349,53 @@ function chooseExportFormat(format) {
   link.remove();
   URL.revokeObjectURL(url);
   closeExportModal();
+}
+
+function escapeCsvCell(value) {
+  const text = String(value || "").replace(/"/g, '""');
+  return `"${text}"`;
+}
+
+function getTreeMaxDepth(nodes, depth = 1) {
+  return nodes.reduce((max, node) => {
+    const nodeDepth =
+      node.type === "folder" && node.children.length
+        ? getTreeMaxDepth(node.children, depth + 1)
+        : depth;
+    return Math.max(max, nodeDepth);
+  }, depth);
+}
+
+function appendTreeRows(nodes, depth, maxDepth, rows) {
+  nodes.forEach((node) => {
+    const row = Array(maxDepth + 1).fill("");
+    row[depth - 1] = node.type === "folder" ? `${node.name}/` : node.name;
+    row[maxDepth] = node.type;
+    rows.push(row.map(escapeCsvCell).join(";"));
+
+    if (node.type === "folder" && node.children.length) {
+      appendTreeRows(node.children, depth + 1, maxDepth, rows);
+    }
+  });
+}
+
+function buildCsvFromTree(root) {
+  if (!Array.isArray(root) || !root.length) {
+    return (
+      "Niveau 1;Type\r\n" + escapeCsvCell("Vide") + ";" + escapeCsvCell("empty")
+    );
+  }
+
+  const maxDepth = getTreeMaxDepth(root);
+  const headers = [];
+  for (let i = 1; i <= maxDepth; i += 1) {
+    headers.push(`Niveau ${i}`);
+  }
+  headers.push("Type");
+
+  const rows = [headers.map(escapeCsvCell).join(";")];
+  appendTreeRows(root, 1, maxDepth, rows);
+  return rows.join("\r\n");
 }
 
 exportModal.querySelectorAll("[data-format]").forEach((button) => {
