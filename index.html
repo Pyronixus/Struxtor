@@ -6,6 +6,7 @@
     <title>StruXtor</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://kit.fontawesome.com/ef95ee3082.js" crossorigin="anonymous" defer></script>
 </head>
 <body>
     <div class="bg-glow-container">
@@ -33,8 +34,7 @@
         <main class="main-content">
             <div id="header">
                 <button id="sidebar-toggle" title="Basculer l'historique">
-                    <i data-lucide="menu"></i>
-                </button>
+                <i class="fa-solid fa-hourglass" style="color: rgb(255, 255, 255);"></i>                </button>
                 <div class="brand-container">
                     <img src="Assets/logo.png" id="logo" alt="logo" onerror="this.style.display='none'">
                     <h1 id="title">StruXtor</h1>
@@ -86,6 +86,19 @@
                 <div id="structure-output"></div>
             </div>
         </main>
+    </div>
+
+    <div id="export-modal" class="export-modal" aria-hidden="true">
+        <div class="export-modal-panel" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
+            <h2 id="export-modal-title">Exporter l'arborescence</h2>
+            <p>Choisis un format pour télécharger le résultat.</p>
+            <div class="export-options">
+                <button type="button" data-format="txt">Exporter en <strong>.txt</strong></button>
+                <button type="button" data-format="md">Exporter en <strong>.md</strong></button>
+                <button type="button" data-format="json">Exporter en <strong>.json</strong></button>
+            </div>
+            <button id="export-cancel" class="export-cancel" type="button">Annuler</button>
+        </div>
     </div>
 
     <script>
