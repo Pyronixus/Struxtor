@@ -25,7 +25,7 @@ L'application a été entièrement développée pour offrir une expérience util
 Voici l'identité visuelle de **StruXtor** représentée par son logo officiel :
 
 <p align="center">
-  <img src="logo.jpg" alt="StruXtor Logo" width="300px" style="border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);"/>
+  <img src="Assets/logo.jpg" alt="StruXtor Logo" width="300px" style="border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);"/>
 </p>
 
 ---
