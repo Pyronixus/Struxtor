@@ -13,6 +13,10 @@ const filterDevCheckbox = document.getElementById("filter-dev");
 const exportModal = document.getElementById("export-modal");
 const exportCancel = document.getElementById("export-cancel");
 
+if (!filterDevCheckbox) {
+  console.warn("Élément #filter-dev introuvable. Le filtre de dossiers de développement est désactivé.");
+}
+
 let currentExportText = "";
 let currentExportRoot = null;
 let historyRecords = [];
@@ -160,7 +164,7 @@ function traverseFileTree(item, path = "") {
   return new Promise((resolve) => {
     const currentPath = path === "" ? item.name : `${path}/${item.name}`;
 
-    if (filterDevCheckbox.checked) {
+    if (filterDevCheckbox?.checked) {
       const pathParts = currentPath.split("/");
       if (pathParts.some((part) => EXCLUDED_FOLDERS.includes(part))) {
         resolve([]);
@@ -199,7 +203,7 @@ function traverseFileTree(item, path = "") {
 async function buildTree(files, progressCallback = null) {
   const root = [];
   const totalFiles = files.length;
-  const shouldFilter = filterDevCheckbox.checked;
+  const shouldFilter = filterDevCheckbox?.checked ?? false;
 
   const addPathToTree = (filePath) => {
     const parts = filePath.replace(/^\/+|\/+$/g, "").split("/");
