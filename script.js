@@ -22,7 +22,6 @@ const ICONS = {
   check: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
 };
 
-// Liste des dossiers de dev à exclure si le filtre est actif
 const EXCLUDED_FOLDERS = [
   "node_modules",
   ".git",
@@ -34,6 +33,28 @@ const EXCLUDED_FOLDERS = [
   ".cache",
   "out",
 ];
+
+// --- EFFET DE SUIVI DE SOURIS ET PARALLAXE (NOUVEAU) ---
+middler.addEventListener("mousemove", (e) => {
+  const rect = middler.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  // Calcul pour l'effet d'inclinaison 3D
+  const rotateX = ((y - rect.height / 2) / rect.height) * -10; // max 10 deg
+  const rotateY = ((x - rect.width / 2) / rect.width) * 10;   // max 10 deg
+
+  middler.style.setProperty("--mouse-x", `${x}px`);
+  middler.style.setProperty("--mouse-y", `${y}px`);
+  middler.style.setProperty("--rotate-x", `${rotateX}deg`);
+  middler.style.setProperty("--rotate-y", `${rotateY}deg`);
+});
+
+middler.addEventListener("mouseleave", () => {
+  // Réinitialisation fluide des angles
+  middler.style.setProperty("--rotate-x", `0deg`);
+  middler.style.setProperty("--rotate-y", `0deg`);
+});
 
 importBtn.addEventListener("click", (e) => {
   e.stopPropagation();
@@ -65,7 +86,6 @@ exportModal.addEventListener("click", (e) => {
   if (e.target === exportModal) closeExportModal();
 });
 
-// Fix du repliement de la barre latérale historique
 sidebarToggle.addEventListener("click", (e) => {
   e.stopPropagation();
   document.querySelector(".sidebar").classList.toggle("collapsed");
@@ -140,7 +160,6 @@ function traverseFileTree(item, path = "") {
   return new Promise((resolve) => {
     const currentPath = path === "" ? item.name : `${path}/${item.name}`;
 
-    // Vérification de filtre immédiat pendant le drag & drop pour optimiser les performances
     if (filterDevCheckbox.checked) {
       const pathParts = currentPath.split("/");
       if (pathParts.some((part) => EXCLUDED_FOLDERS.includes(part))) {
@@ -185,7 +204,6 @@ async function buildTree(files, progressCallback = null) {
   const addPathToTree = (filePath) => {
     const parts = filePath.replace(/^\/+|\/+$/g, "").split("/");
 
-    // Filtrage des fichiers issus de l'input classique
     if (shouldFilter && parts.some((part) => EXCLUDED_FOLDERS.includes(part))) {
       return;
     }
@@ -522,8 +540,7 @@ function getFileExtensionClass(filename) {
       return "ext-css";
     case "scss":
     case "sass":
-    case "less":
-      return "ext-scss";
+      return "ext-less";
     case "json":
       return "ext-json";
     case "py":
